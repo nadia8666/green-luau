@@ -1,0 +1,26 @@
+let x = 1;
+let y = 0;
+print("hello world", x, y);
+
+function test(a, b, c) {
+    let x = 5;
+    const a = true;
+}
+
+y += 1;
+y -= 3;
+y = -1;
+y = -y;
+
+if (x == y) {
+    error("it shouldnt :(")
+}
+
+if (true == true) {
+    print("hi")
+} else if (false == true) {
+    warn("not cool!")
+}
+
+test(x, y, -5)
+test("hi", "green", "luau")
