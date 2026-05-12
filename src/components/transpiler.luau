@@ -75,6 +75,10 @@ function transpiler:register_defaults()
 		return node.name
 	end)
 
+	self:register_handler("parenthesis", function(self, node)
+		return `({self:build_node(node.expression)})`
+	end)
+
 	self:register_handler("if", function(self, node)
 		local out = `if {self:build_node(node.test)} then\n{self:build_node(node.consequent)}`
 

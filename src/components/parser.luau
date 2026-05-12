@@ -17,6 +17,7 @@ local token_priority = {
 	["-"] = 2,
 	["*"] = 3,
 	["/"] = 3,
+	["^"] = 4,
 }
 
 function parser.new(tokens: { types.token })
@@ -195,7 +196,7 @@ do
 			self:consume("(")
 			local expr = self:parse_expression()
 			self:consume(")")
-			return expr
+			return { type = "parenthesis", expression = expr }
 		end
 
 		local lit = self:consume()

@@ -24,3 +24,9 @@ if (true == true) {
 
 test(x, y, -5)
 test("hi", "green", "luau")
+
+let x = (3 - 5) * (1 - 5) - 3 * 8/2 + (7 * 1);
+const a = x * 2;
+y = y ^ 2;
+
+j = 2;
