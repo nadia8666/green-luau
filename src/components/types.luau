@@ -1,4 +1,4 @@
-export type token_type = "keyword" | "id" | "num" | "str" | "symbol" | "eof"
+export type token_type = "keyword" | "id" | "num" | "str" | "symbol" | "comment" | "eof"
 
 export type token = {
 	type: token_type,

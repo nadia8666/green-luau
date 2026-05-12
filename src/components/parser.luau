@@ -60,7 +60,7 @@ function parser:register_statement(
 	...: any
 )
 	if typeof(keywords) == "table" then
-		for _,keyword in keywords do
+		for _, keyword in keywords do
 			self.statement_parsers[keyword] = { handler, { ... } }
 		end
 	else
@@ -78,7 +78,7 @@ function parser:register_defaults()
 		return { type = "var", kind = kind, id = id_name, init = init }
 	end
 
-	self:register_statement({"let", "const", "var"}, parse_declaration)
+	self:register_statement({ "let", "const", "var" }, parse_declaration)
 
 	self:register_statement("function", function(parser_self)
 		parser_self:consume("function")
@@ -125,7 +125,14 @@ do
 	function parser:parse_statement()
 		local token = self:peek()
 
-		if token.type == "keyword" then
+		if token.type == "comment" then
+			self:consume()
+			return {
+				type = "comment",
+				value = token.value,
+				is_block = token.is_block or false,
+			}
+		elseif token.type == "keyword" then
 			if token.value == "if" then
 				return self:parse_if_statement()
 			elseif self.statement_parsers[token.value] then

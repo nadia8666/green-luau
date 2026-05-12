@@ -37,7 +37,9 @@ function transpiler:register_defaults()
 	end)
 
 	self:register_handler("var", function(self, node)
-		local luau_keyword = (node.kind == "let" or node.kind == "var") and "local" or (node.kind == "const") and "const" or ""
+		local luau_keyword = (node.kind == "let" or node.kind == "var") and "local"
+			or (node.kind == "const") and "const"
+			or ""
 		return `{luau_keyword} {node.id} = {self:build_node(node.init)}`
 	end)
 
@@ -115,6 +117,14 @@ function transpiler:register_defaults()
 
 	self:register_handler("assign", function(self, node)
 		return `{node.id} {node.operator} {self:build_node(node.value)}`
+	end)
+
+	self:register_handler("comment", function(self, node)
+		if node.is_block then
+			return `--[[{node.value}]]`
+		else
+			return `--{node.value}`
+		end
 	end)
 end
 

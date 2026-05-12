@@ -35,3 +35,17 @@ const a = x * 2;
 y = y ^ 2;
 
 j = 2;
+
+// hi
+/*
+this is a block!
+*/
+
+// im green!
+function test2() {
+    // green
+    /*
+        increasingly green documentation.
+        eco mode is a feature
+    */
+}

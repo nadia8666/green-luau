@@ -52,6 +52,60 @@ function lexer:build()
 		if string.match(char, "%s") then
 			-- %s is whitespace
 			self:consume_char()
+		elseif char == "/" and string.sub(self.input, self.cursor + 1, self.cursor + 1) == "/" then
+			-- comment //
+			local start_line = self.line
+			local start_column = self.column
+			self:consume_char() -- /
+			self:consume_char() -- /
+			local start = self.cursor
+			while self.cursor <= self.length and self:peek() ~= "\n" do
+				self:consume_char()
+			end
+			local value = string.sub(self.input, start, self.cursor - 1)
+			table.insert(tokens, {
+				type = "comment",
+				value = value,
+				line = start_line,
+				column = start_column,
+				is_block = false,
+			})
+		elseif char == "/" and string.sub(self.input, self.cursor + 1, self.cursor + 1) == "*" then
+			-- block comment /* */
+			local start_line = self.line
+			local start_column = self.column
+			self:consume_char() -- /
+			self:consume_char() -- *
+			local start = self.cursor
+			while self.cursor <= self.length do
+				if self:peek() == "*" and string.sub(self.input, self.cursor + 1, self.cursor + 1) == "/" then
+					-- TODO: make comments end with the same indentation as their origin point
+					--[[
+						currently writng a block like:
+						/*
+							a
+						*/
+
+						is converted to
+						--[[
+							a
+						  ]_]
+					]]
+					local value = string.sub(self.input, start, self.cursor - 1)
+					self:consume_char() -- *
+					self:consume_char() -- /
+					table.insert(tokens, {
+						type = "comment",
+						value = value,
+						line = start_line,
+						column = start_column,
+						is_block = true,
+					})
+					break
+				else
+					self:consume_char()
+				end
+			end
 		elseif string.match(char, "[%a_]") then
 			-- generic
 			local start = self.cursor
