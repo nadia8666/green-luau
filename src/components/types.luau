@@ -18,4 +18,9 @@ export type tree = {
 	type: "program",
 }
 
+export type type_node = {
+	kind: "builtin" | "reference" | "literal" | "object" | "function" | "union",
+	[string]: any,
+}
+
 return {}

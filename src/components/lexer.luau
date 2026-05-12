@@ -8,10 +8,24 @@ local keywords = {
 	"function",
 	"if",
 	"else",
+	"type",
+}
+
+local multi_symbols = {
+	"==",
+	"+=",
+	"-=",
+	"!=",
+	"<=",
+	">=",
 }
 
 for _, keyword_value in keywords do
 	keywords[keyword_value] = true
+end
+
+for _, symbol in multi_symbols do
+	multi_symbols[symbol] = true
 end
 
 function lexer.new(input: string)
@@ -161,15 +175,6 @@ function lexer:make_symbol()
 	local char = self:consume_char()
 	local next_char = self:peek()
 	local combined = char .. next_char
-
-	local multi_symbols = {
-		["=="] = true,
-		["+="] = true,
-		["-="] = true,
-		["!="] = true,
-		["<="] = true,
-		[">="] = true,
-	}
 
 	if multi_symbols[combined] then
 		self:consume_char()

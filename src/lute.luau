@@ -17,8 +17,8 @@ function file_changed(path: string)
 	local name: string = path:split("/")
 	name = name[#name]
 
-	local new_contents = main.process(fs.readFileToString(path))
-	if new_contents then
+	local success, output, stage = main.run_full(fs.readFileToString(path))
+	if success then
 		local start = path:find("src")
 		local out_path = path:gsub(".glua", ".luau")
 		out_path = `{out_path:sub(0, start - 2)}/out/{out_path:sub(start + 4)}`
@@ -29,11 +29,13 @@ function file_changed(path: string)
 
 		local file = fs.open(out_path, "w+")
 		if file then
-			fs.write(file, new_contents)
+			fs.write(file, output)
 		end
 
-        print(`successfully transpiled {name}`)
-    end
+		print(`successfully transpiled {name}`)
+	else
+		print(`failed to transpile {name} at stage {stage}:\n{output}`)
+	end
 end
 
 function watch_directory(path: string)
@@ -71,5 +73,5 @@ while true do
 			task.spawn(file_changed, path)
 		end
 	end
-	task.wait()
+	task.wait(.15)
 end

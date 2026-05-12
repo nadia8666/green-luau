@@ -49,3 +49,21 @@ function test2() {
         eco mode is a feature
     */
 }
+
+type test = {
+    test: string,
+    num: number,
+    strliteral: "strliteral",
+};
+
+const test_value: other = {
+    test: "hi",
+    num: 1,
+    strliteral: "strliteral"
+};
+
+function vec(x: string, y: number, t: x, z: "h") {
+
+}
+
+vec("a", 0, x, "h");

@@ -44,7 +44,15 @@ function transpiler:register_defaults()
 	end)
 
 	self:register_handler("func", function(self, node)
-		local params = table.concat(node.params, ", ")
+		local param_names = {}
+		for _, param in node.params do
+			if typeof(param) == "table" then
+				table.insert(param_names, param.name)
+			else
+				table.insert(param_names, param)
+			end
+		end
+		local params = table.concat(param_names, ", ")
 		local body_lines = {}
 		for _, stmt in node.body do
 			table.insert(body_lines, `  {self:build_node(stmt)}`)
@@ -125,6 +133,18 @@ function transpiler:register_defaults()
 		else
 			return `--{node.value}`
 		end
+	end)
+
+	self:register_handler("type_decl", function(self, node)
+		return ""
+	end)
+
+	self:register_handler("object_literal", function(self, node)
+		local pairs = {}
+		for _, field in node.fields do
+			table.insert(pairs, `{field.name} = {self:build_node(field.value)}`)
+		end
+		return "{ " .. table.concat(pairs, ", ") .. " }"
 	end)
 end
 

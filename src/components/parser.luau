@@ -1,6 +1,7 @@
 --!nonstrict
 
 local types = require("./types")
+local type_system = require("./type_system")
 
 local parser = {}
 parser.__index = parser
@@ -25,6 +26,7 @@ function parser.new(tokens: { types.token })
 		tokens = tokens,
 		cursor = 1,
 		statement_parsers = {},
+		type_system = type_system.new(),
 	}, parser)
 
 	self:register_defaults()
@@ -72,13 +74,28 @@ function parser:register_defaults()
 	local function parse_declaration(parser_self)
 		local kind = parser_self:consume().value
 		local id_name = parser_self:consume().value
+		local type_annotation = nil
+		if parser_self:peek().value == ":" then
+			parser_self:consume(":")
+			type_annotation = parser_self:parse_type_expr()
+		end
 		parser_self:consume("=")
 		local init = parser_self:parse_expression()
 		parser_self:consume(";")
-		return { type = "var", kind = kind, id = id_name, init = init }
+		return { type = "var", kind = kind, id = id_name, init = init, type_annotation = type_annotation }
 	end
 
 	self:register_statement({ "let", "const", "var" }, parse_declaration)
+
+	self:register_statement("type", function(parser_self)
+		parser_self:consume("type")
+		local type_name = parser_self:consume().value
+		parser_self:consume("=")
+		local type_def = parser_self:parse_type_expr()
+		parser_self:consume(";")
+		parser_self.type_system:register_type(type_name, type_def)
+		return { type = "type_decl", name = type_name, type_def = type_def }
+	end)
 
 	self:register_statement("function", function(parser_self)
 		parser_self:consume("function")
@@ -87,7 +104,13 @@ function parser:register_defaults()
 		local params = {}
 		if parser_self:peek().value ~= ")" then
 			repeat
-				table.insert(params, parser_self:consume().value)
+				local param_name = parser_self:consume().value
+				local param_type = nil
+				if parser_self:peek().value == ":" then
+					parser_self:consume(":")
+					param_type = parser_self:parse_type_expr()
+				end
+				table.insert(params, { name = param_name, type_annotation = param_type })
 				if parser_self:peek().value == "," then
 					parser_self:consume(",")
 				end
@@ -213,6 +236,8 @@ do
 			local expr = self:parse_expression()
 			self:consume(")")
 			return { type = "parenthesis", expression = expr }
+		elseif token.value == "{" then
+			return self:parse_object_literal()
 		end
 
 		local lit = self:consume()
@@ -228,6 +253,24 @@ do
 		end
 
 		error(`unexpected token in expression: {lit.value}`)
+	end
+
+	function parser:parse_object_literal(): types.node
+		self:consume("{")
+		local fields = {}
+		if self:peek().value ~= "}" then
+			repeat
+				local field_name = self:consume().value
+				self:consume(":")
+				local field_value = self:parse_expression()
+				table.insert(fields, { name = field_name, value = field_value })
+				if self:peek().value == "," then
+					self:consume(",")
+				end
+			until self:peek().value == "}"
+		end
+		self:consume("}")
+		return { type = "object_literal", fields = fields }
 	end
 
 	function parser:parse_assignment(id: string)
@@ -264,10 +307,48 @@ do
 		self:consume("{")
 		local body = {}
 		while self:peek().value ~= "}" do
-			table.insert(body, self:parse_statement())
+			local statement = self:parse_statement()
+			if statement then
+				table.insert(body, statement)
+			end
 		end
 		self:consume("}")
 		return { type = "block", body = body }
+	end
+
+	function parser:parse_type_expr(): any
+		local token = self:peek()
+
+		if token.value == "{" then
+			return self:parse_object_type()
+		elseif token.type == "str" then
+			local value = self:consume().value
+			return { kind = "literal", value = value }
+		elseif token.type == "id" then
+			local name = self:consume().value
+			return { kind = "reference", name = name }
+		end
+
+		self:report_error(`unexpected token in type: {token.value}`)
+		return nil
+	end
+
+	function parser:parse_object_type(): any
+		self:consume("{")
+		local fields = {}
+		if self:peek().value ~= "}" then
+			repeat
+				local field_name = self:consume().value
+				self:consume(":")
+				local field_type = self:parse_type_expr()
+				table.insert(fields, { name = field_name, field_type = field_type })
+				if self:peek().value == "," then
+					self:consume(",")
+				end
+			until self:peek().value == "}"
+		end
+		self:consume("}")
+		return { kind = "object", fields = fields }
 	end
 end
 
