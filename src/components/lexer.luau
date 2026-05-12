@@ -4,6 +4,7 @@ lexer.__index = lexer
 local keywords = {
 	"let",
 	"const",
+	"var",
 	"function",
 	"if",
 	"else",

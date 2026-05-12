@@ -37,7 +37,7 @@ function transpiler:register_defaults()
 	end)
 
 	self:register_handler("var", function(self, node)
-		local luau_keyword = (node.kind == "let" or node.kind == "const") and "local" or ""
+		local luau_keyword = (node.kind == "let" or node.kind == "var") and "local" or (node.kind == "const") and "const" or ""
 		return `{luau_keyword} {node.id} = {self:build_node(node.init)}`
 	end)
 

@@ -54,8 +54,18 @@ function parser:consume(expected_value: string?)
 	return token
 end
 
-function parser:register_statement(keyword: string, handler: (typeof(parser.new(nil))) -> types.node)
-	self.statement_parsers[keyword] = handler
+function parser:register_statement(
+	keywords: string | { string },
+	handler: (typeof(parser.new(nil))) -> types.node,
+	...: any
+)
+	if typeof(keywords) == "table" then
+		for _,keyword in keywords do
+			self.statement_parsers[keyword] = { handler, { ... } }
+		end
+	else
+		self.statement_parsers[keywords] = { handler, { ... } }
+	end
 end
 
 function parser:register_defaults()
@@ -68,8 +78,7 @@ function parser:register_defaults()
 		return { type = "var", kind = kind, id = id_name, init = init }
 	end
 
-	self:register_statement("let", parse_declaration)
-	self:register_statement("const", parse_declaration)
+	self:register_statement({"let", "const", "var"}, parse_declaration)
 
 	self:register_statement("function", function(parser_self)
 		parser_self:consume("function")
@@ -120,7 +129,7 @@ do
 			if token.value == "if" then
 				return self:parse_if_statement()
 			elseif self.statement_parsers[token.value] then
-				return self.statement_parsers[token.value](self)
+				return self.statement_parsers[token.value][1](self, unpack(self.statement_parsers[token.value][2]))
 			end
 		elseif token.type == "id" then
 			local name = self:consume().value
