@@ -4,10 +4,10 @@ on:
   workflow_dispatch:
     inputs:
       version_number:
-        description: 'version number (x.y.z)'
+        description: 'version number v(x.y.z)'
         required: true
         type: string
-        default: '0.0.0'
+        default: 'v0.0.0'
 
 permissions:
   contents: write
