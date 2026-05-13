@@ -223,7 +223,7 @@ do
 		self:report_error(json.serialize({
 			error_type = "PARSE",
 			token = token,
-			reason = "failed to parse statement",
+			reason = `failed to parse statement: unexpected token "{token.value}"`,
 		}), true)
 
 		return
