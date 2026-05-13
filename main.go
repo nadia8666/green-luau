@@ -46,7 +46,7 @@ func main() {
 	}
 
 	lute := filepath.Join(dir, "lute.exe")
-	entry := filepath.Join(dir, "src", "main.luau")
+	entry := filepath.Join(dir, "src", "runtime.luau")
 
 	// this syntax is evil for what it acutally does i spent 10 minutes on this
 	cmd := exec.Command(lute, append([]string{entry}, os.Args[1:]...)...)
