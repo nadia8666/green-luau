@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 )
 
-//go:embed lute.exe src/main.luau src/components/*.luau
+//go:embed lute.exe src/*.luau src/components/*.luau
 var embedded embed.FS
 
 func main() {

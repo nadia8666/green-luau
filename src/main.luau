@@ -24,6 +24,14 @@ function main.transpile(input: string): (boolean, string)
 	return success, output
 end
 
+function main.lint(input: string): (boolean, string)
+	local success, output = pcall(function()
+		return lexer.new(input):build()
+	end)
+
+	return success, output
+end
+
 function main.check(input: string): { diagnostics: any, ast: any? }
 	local ts = type_system.new()
 
