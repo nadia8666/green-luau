@@ -56,7 +56,7 @@ type test = {
     strliteral: "strliteral",
 };
 
-const test_value: other = {
+const test_value: test = {
     test: "hi",
     num: 1,
     strliteral: "strliteral"
@@ -67,3 +67,7 @@ function vec(x: string, y: number, t: x, z: "h") {
 }
 
 vec("a", 0, x, "h");
+
+if (true && false) {
+    const vvvvv: boolean = ((x == 1) || false);
+}

@@ -114,7 +114,14 @@ function transpiler:register_defaults()
 	end)
 
 	self:register_handler("binary", function(self, node)
-		local operator = node.operator == "!=" and "~=" or node.operator
+		local operator = node.operator
+		if operator == "!=" then
+			operator = "~="
+		elseif operator == "&&" then
+			operator = "and"
+		elseif operator == "||" then
+			operator = "or"
+		end
 		return `{self:build_node(node.left)} {operator} {self:build_node(node.right)}`
 	end)
 

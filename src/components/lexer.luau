@@ -18,6 +18,8 @@ local multi_symbols = {
 	"!=",
 	"<=",
 	">=",
+	"&&",
+	"||",
 }
 
 for _, keyword_value in keywords do
