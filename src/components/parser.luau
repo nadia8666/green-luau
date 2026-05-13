@@ -310,7 +310,12 @@ do
 		if self:peek().value ~= "}" then
 			repeat
 				local field_name = self:consume().value
-				self:consume(":")
+				local separator = self:peek().value
+				if separator == ":" or separator == "=" then
+					self:consume(separator)
+				else
+					error(`expected ":" or "=" but got "{separator}"`)
+				end
 				local field_value = self:parse_expression()
 				table.insert(fields, { name = field_name, value = field_value })
 				if self:peek().value == "," then

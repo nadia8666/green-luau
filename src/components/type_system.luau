@@ -54,9 +54,19 @@ function type_system:check_assignable(from: types.type_node, to: types.type_node
 		return from.value == to.value
 	end
 	if from.kind == "object" and to.kind == "object" then
-		for name, to_field in to.fields do
-			local from_field = from.fields[name]
-			if not from_field or not self:check_assignable(from_field, to_field) then
+		for key, to_field in to.fields do
+			local field_name, field_type
+
+			if typeof(key) == "number" and typeof(to_field) == "table" and to_field.name then
+				field_name = to_field.name
+				field_type = to_field.field_type
+			else
+				field_name = key
+				field_type = to_field
+			end
+
+			local from_field = from.fields[field_name]
+			if not from_field or not self:check_assignable(from_field, field_type) then
 				return false
 			end
 		end
