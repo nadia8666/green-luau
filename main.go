@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bufio"
 	"embed"
+	"fmt"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -54,5 +56,10 @@ func main() {
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
 
-	cmd.Run()
+	err = cmd.Run()
+	if err != nil {
+		fmt.Println("green luau has errored.")
+		bufio.NewReader(os.Stdin).ReadByte()
+		os.Exit(1)
+	}
 }
