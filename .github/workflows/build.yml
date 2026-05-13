@@ -1,14 +1,19 @@
 name: release
 
 on:
-  push:
-    branches: ["main"]
+  workflow_dispatch:
+    inputs:
+      version_number:
+        description: 'version number (x.y.z)'
+        required: true
+        type: string
+        default: '0.0.0'
 
 permissions:
   contents: write
 
 env:
-  VERSION: "0.0.4"
+  VERSION: ${{ github.event.inputs.version_number }}
 
 jobs:
   build:
