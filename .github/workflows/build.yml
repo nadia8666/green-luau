@@ -22,12 +22,6 @@ jobs:
         with:
           go-version: '1.21'
 
-      - name: download lute
-        run: |
-          curl -L -o lute.zip https://github.com/luau-lang/lute/releases/download/v1.0.0/lute-windows-x86_64.zip
-          unzip lute.zip
-          mv **/lute.exe ./lute.exe
-
       - name: build
         run: |
           GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o green-luau.exe main.go
