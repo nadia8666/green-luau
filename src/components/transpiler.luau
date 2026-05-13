@@ -66,7 +66,7 @@ function transpiler:register_defaults()
 		for _, arg in node.arguments do
 			table.insert(args, self:build_node(arg))
 		end
-		return `{node.callee}({table.concat(args, ", ")})`
+		return `{self:build_node(node.callee)}({table.concat(args, ", ")})`
 	end)
 
 	self:register_handler("num", function(self, node)
@@ -74,7 +74,8 @@ function transpiler:register_defaults()
 	end)
 
 	self:register_handler("str", function(self, node)
-		return `"{node.value}"`
+		local q = node.quote or '"'
+		return `{q}{node.value}{q}`
 	end)
 
 	self:register_handler("bool", function(self, node)
@@ -87,6 +88,10 @@ function transpiler:register_defaults()
 
 	self:register_handler("parenthesis", function(self, node)
 		return `({self:build_node(node.expression)})`
+	end)
+
+	self:register_handler("member", function(self, node)
+		return `{self:build_node(node.object)}.{node.property}`
 	end)
 
 	self:register_handler("if", function(self, node)
@@ -131,7 +136,7 @@ function transpiler:register_defaults()
 	end)
 
 	self:register_handler("assign", function(self, node)
-		return `{node.id} {node.operator} {self:build_node(node.value)}`
+		return `{self:build_node(node.left)} {node.operator} {self:build_node(node.value)}`
 	end)
 
 	self:register_handler("comment", function(self, node)

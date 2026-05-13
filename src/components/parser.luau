@@ -210,13 +210,13 @@ do
 				return self.statement_parsers[token.value][1](self, unpack(self.statement_parsers[token.value][2]))
 			end
 		elseif token.type == "id" then
-			local id_token = self:consume()
+			local left = self:parse_primary()
 			local next_token = self:peek()
 
 			if next_token.value == "(" then
-				return self:parse_call(id_token)
+				return self:parse_call(left)
 			elseif next_token.value == "=" or next_token.value == "+=" or next_token.value == "-=" then
-				return self:parse_assignment(id_token)
+				return self:parse_assignment(left)
 			end
 		end
 
@@ -226,31 +226,7 @@ do
 			reason = `failed to parse statement: unexpected token "{token.value}"`,
 		}), true)
 
-		return
-	end
-
-	function parser:parse_call(id_token: types.token)
-		self:consume("(")
-		local args = {}
-		if self:peek().value ~= ")" then
-			repeat
-				table.insert(args, self:parse_expression())
-				if self:peek().value == "," then
-					self:consume(",")
-				end
-			until self:peek().value == ")"
-		end
-		self:consume(")")
-		if self:peek().value == ";" then
-			self:consume(";")
-		end
-		return {
-			type = "call",
-			callee = id_token.value,
-			arguments = args,
-			line = id_token.line,
-			column = id_token.column,
-		}
+		return nil
 	end
 
 	function parser:parse_binary_expression(left: types.node, min_prec: number): types.node
@@ -298,6 +274,27 @@ do
 	end
 
 	function parser:parse_primary(): types.node
+		local left = self:parse_literal()
+
+		while self:peek().value == "." do
+			self:consume(".")
+			local property_token = self:consume()
+			if property_token.type ~= "id" then
+				self:report_error(`expected property name after "." but got {property_token.value}`)
+			end
+			left = {
+				type = "member",
+				object = left,
+				property = property_token.value,
+				line = left.line,
+				column = left.column,
+			}
+		end
+
+		return left
+	end
+
+	function parser:parse_literal(): types.node
 		local token = self:peek()
 
 		if token.value == "(" then
@@ -318,7 +315,7 @@ do
 		if lit.type == "num" then
 			return { type = "num", value = tonumber(lit.value), line = lit.line, column = lit.column }
 		elseif lit.type == "str" then
-			return { type = "str", value = lit.value, line = lit.line, column = lit.column }
+			return { type = "str", value = lit.value, quote = lit.quote, line = lit.line, column = lit.column }
 		elseif lit.type == "id" then
 			if lit.value == "true" or lit.value == "false" then
 				return { type = "bool", value = lit.value == "true", line = lit.line, column = lit.column }
@@ -368,7 +365,7 @@ do
 		}
 	end
 
-	function parser:parse_assignment(id_token: types.token)
+	function parser:parse_assignment(left: types.node): types.node
 		local operator = self:consume().value
 		local value = self:parse_expression()
 		if self:peek().value == ";" then
@@ -376,11 +373,11 @@ do
 		end
 		return {
 			type = "assign",
-			id = id_token.value,
+			left = left,
 			operator = operator,
 			value = value,
-			line = id_token.line,
-			column = id_token.column,
+			line = left.line,
+			column = left.column,
 		}
 	end
 

@@ -166,6 +166,7 @@ function lexer:build()
 			table.insert(tokens, {
 				type = "str",
 				value = value,
+				quote = char,
 				line = start_line,
 				column = start_column,
 			})
