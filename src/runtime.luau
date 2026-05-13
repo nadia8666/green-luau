@@ -39,13 +39,13 @@ if mode == "build" then
 
 	io.write(json.serialize(value))
 
-    return
+	return
 elseif mode == "check" then
 	local out = main.check(fs.readFileToString(ain))
 
 	io.write(json.serialize(out))
 
-    return
+	return
 elseif mode == "lint" then
 	local success, output = main.lint(fs.readFileToString(ain))
 	local value = {
@@ -55,7 +55,9 @@ elseif mode == "lint" then
 
 	io.write(json.serialize(value))
 
-    return
+	return
 end
 
-error("could not process files, invalid args?")
+local err = "could not process files, invalid args?"
+io.write({ success = false, output = err })
+error(err)
