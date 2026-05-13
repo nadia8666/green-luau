@@ -36,6 +36,7 @@ function main.check(input: string): { diagnostics: any, ast: any? }
 		return { diagnostics = diagnostics, ast = ast }
 	end)
 
+	-- TODO: provide real failure diagnostics
 	if not success then
 		return {
 			diagnostics = {
@@ -52,24 +53,32 @@ function main.check(input: string): { diagnostics: any, ast: any? }
 	return result
 end
 
-function main.run_full(input: string): (boolean, string, string)
+function main.run_full(input: string): (boolean, string | {}, string)
 	local ts = type_system.new()
 	local stage = "TOKENIZE"
+	local failed = false
 
 	local ast
 	local pre_success, result = pcall(function()
 		local tokens = lexer.new(input):build()
 		stage = "PARSE"
 		ast = parser.new(tokens):build()
-		
+
 		stage = "TYPE_CHECK"
 		local checker = type_checker.new(ts)
 		local diagnostics = checker:check_tree(ast)
 
+		for _, v in diagnostics do
+			if v.severity == "error" then
+				failed = true
+				break
+			end
+		end
+
 		return { diagnostics = diagnostics, ast = ast }
 	end)
 
-	if pre_success and ast then
+	if pre_success and not failed and ast then
 		local success, output = pcall(function()
 			return transpiler.new(ast):build()
 		end)

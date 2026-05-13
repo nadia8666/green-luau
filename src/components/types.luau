@@ -9,6 +9,8 @@ export type token = {
 
 export type node = {
 	type: string,
+	line: number,
+	column: number,
 	[string]: any, -- TODO: statically type all nodes
 }
 

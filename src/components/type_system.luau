@@ -44,14 +44,23 @@ function type_system:resolve_type(type_expr: types.type_node): types.type_node
 end
 
 function type_system:check_assignable(from: types.type_node, to: types.type_node): boolean
-	if to.name == "any" then
+	if to.name == "any" or from.name == "any" then
 		return true
 	end
-	if from.name == to.name then
+	if from.name == to.name and from.name ~= nil then
 		return true
 	end
 	if from.kind == "literal" and to.kind == "literal" then
 		return from.value == to.value
+	end
+	if from.kind == "object" and to.kind == "object" then
+		for name, to_field in to.fields do
+			local from_field = from.fields[name]
+			if not from_field or not self:check_assignable(from_field, to_field) then
+				return false
+			end
+		end
+		return true
 	end
 	return false
 end

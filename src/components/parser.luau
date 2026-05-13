@@ -74,6 +74,7 @@ end
 
 function parser:register_defaults()
 	local function parse_declaration(parser_self)
+		local start_token = parser_self:peek()
 		local kind = parser_self:consume().value
 		local id_name = parser_self:consume().value
 		local type_annotation = nil
@@ -84,22 +85,38 @@ function parser:register_defaults()
 		parser_self:consume("=")
 		local init = parser_self:parse_expression()
 		parser_self:consume(";")
-		return { type = "var", kind = kind, id = id_name, init = init, type_annotation = type_annotation }
+		return {
+			type = "var",
+			kind = kind,
+			id = id_name,
+			init = init,
+			type_annotation = type_annotation,
+			line = start_token.line,
+			column = start_token.column,
+		}
 	end
 
 	self:register_statement({ "let", "const", "var" }, parse_declaration)
 
 	self:register_statement("type", function(parser_self)
+		local start_token = parser_self:peek()
 		parser_self:consume("type")
 		local type_name = parser_self:consume().value
 		parser_self:consume("=")
 		local type_def = parser_self:parse_type_expr()
 		parser_self:consume(";")
 		parser_self.type_system:register_type(type_name, type_def)
-		return { type = "type_decl", name = type_name, type_def = type_def }
+		return {
+			type = "type_decl",
+			name = type_name,
+			type_def = type_def,
+			line = start_token.line,
+			column = start_token.column,
+		}
 	end)
 
 	self:register_statement("function", function(parser_self)
+		local start_token = parser_self:peek()
 		parser_self:consume("function")
 		local func_name = parser_self:consume().value
 		parser_self:consume("(")
@@ -125,7 +142,14 @@ function parser:register_defaults()
 			table.insert(body, parser_self:parse_statement())
 		end
 		parser_self:consume("}")
-		return { type = "func", name = func_name, params = params, body = body }
+		return {
+			type = "func",
+			name = func_name,
+			params = params,
+			body = body,
+			line = start_token.line,
+			column = start_token.column,
+		}
 	end)
 end
 
@@ -156,6 +180,8 @@ do
 				type = "comment",
 				value = token.value,
 				is_block = token.is_block or false,
+				line = token.line,
+				column = token.column,
 			}
 		elseif token.type == "keyword" then
 			if token.value == "if" then
@@ -164,20 +190,20 @@ do
 				return self.statement_parsers[token.value][1](self, unpack(self.statement_parsers[token.value][2]))
 			end
 		elseif token.type == "id" then
-			local name = self:consume().value
+			local id_token = self:consume()
 			local next_token = self:peek()
 
 			if next_token.value == "(" then
-				return self:parse_call(name)
+				return self:parse_call(id_token)
 			elseif next_token.value == "=" or next_token.value == "+=" or next_token.value == "-=" then
-				return self:parse_assignment(name)
+				return self:parse_assignment(id_token)
 			end
 		end
 
 		error(`failed for statement at {token.value}`)
 	end
 
-	function parser:parse_call(callee: string)
+	function parser:parse_call(id_token: types.token)
 		self:consume("(")
 		local args = {}
 		if self:peek().value ~= ")" then
@@ -192,7 +218,13 @@ do
 		if self:peek().value == ";" then
 			self:consume(";")
 		end
-		return { type = "call", callee = callee, arguments = args }
+		return {
+			type = "call",
+			callee = id_token.value,
+			arguments = args,
+			line = id_token.line,
+			column = id_token.column,
+		}
 	end
 
 	function parser:parse_binary_expression(left: types.node, min_prec: number): types.node
@@ -212,19 +244,28 @@ do
 				right = self:parse_binary_expression(right, prec + 1)
 			end
 
-			left = { type = "binary", operator = operator, left = left, right = right }
+			left = {
+				type = "binary",
+				operator = operator,
+				left = left,
+				right = right,
+				line = left.line,
+				column = left.column,
+			}
 		end
 		return left
 	end
 
 	function parser:parse_unary_expression(): types.node
-		local token = self:peek()
-		if token.value == "-" or token.value == "!" then
+		local start_token = self:peek()
+		if start_token.value == "-" or start_token.value == "!" then
 			local operator = self:consume().value
 			return {
 				type = "unary",
 				operator = operator,
 				argument = self:parse_unary_expression(),
+				line = start_token.line,
+				column = start_token.column,
 			}
 		end
 		return self:parse_primary()
@@ -237,27 +278,33 @@ do
 			self:consume("(")
 			local expr = self:parse_expression()
 			self:consume(")")
-			return { type = "parenthesis", expression = expr }
+			return {
+				type = "parenthesis",
+				expression = expr,
+				line = token.line,
+				column = token.column,
+			}
 		elseif token.value == "{" then
 			return self:parse_object_literal()
 		end
 
 		local lit = self:consume()
 		if lit.type == "num" then
-			return { type = "num", value = tonumber(lit.value) }
+			return { type = "num", value = tonumber(lit.value), line = lit.line, column = lit.column }
 		elseif lit.type == "str" then
-			return { type = "str", value = lit.value }
+			return { type = "str", value = lit.value, line = lit.line, column = lit.column }
 		elseif lit.type == "id" then
 			if lit.value == "true" or lit.value == "false" then
-				return { type = "bool", value = lit.value == "true" }
+				return { type = "bool", value = lit.value == "true", line = lit.line, column = lit.column }
 			end
-			return { type = "id", name = lit.value }
+			return { type = "id", name = lit.value, line = lit.line, column = lit.column }
 		end
 
 		error(`unexpected token in expression: {lit.value}`)
 	end
 
 	function parser:parse_object_literal(): types.node
+		local start_token = self:peek()
 		self:consume("{")
 		local fields = {}
 		if self:peek().value ~= "}" then
@@ -272,19 +319,32 @@ do
 			until self:peek().value == "}"
 		end
 		self:consume("}")
-		return { type = "object_literal", fields = fields }
+		return {
+			type = "object_literal",
+			fields = fields,
+			line = start_token.line,
+			column = start_token.column,
+		}
 	end
 
-	function parser:parse_assignment(id: string)
+	function parser:parse_assignment(id_token: types.token)
 		local operator = self:consume().value
 		local value = self:parse_expression()
 		if self:peek().value == ";" then
 			self:consume(";")
 		end
-		return { type = "assign", id = id, operator = operator, value = value }
+		return {
+			type = "assign",
+			id = id_token.value,
+			operator = operator,
+			value = value,
+			line = id_token.line,
+			column = id_token.column,
+		}
 	end
 
 	function parser:parse_if_statement()
+		local start_token = self:peek()
 		self:consume("if")
 		self:consume("(")
 		local test = self:parse_expression()
@@ -302,10 +362,18 @@ do
 			end
 		end
 
-		return { type = "if", test = test, consequent = consequent, alternate = alternate }
+		return {
+			type = "if",
+			test = test,
+			consequent = consequent,
+			alternate = alternate,
+			line = start_token.line,
+			column = start_token.column,
+		}
 	end
 
 	function parser:parse_block()
+		local start_token = self:peek()
 		self:consume("{")
 		local body = {}
 		while self:peek().value ~= "}" do
@@ -315,7 +383,12 @@ do
 			end
 		end
 		self:consume("}")
-		return { type = "block", body = body }
+		return {
+			type = "block",
+			body = body,
+			line = start_token.line,
+			column = start_token.column,
+		}
 	end
 
 	function parser:parse_type_expr(): any
@@ -325,10 +398,10 @@ do
 			return self:parse_object_type()
 		elseif token.type == "str" then
 			local value = self:consume().value
-			return { kind = "literal", value = value }
+			return { kind = "literal", value = value, line = token.line, column = token.column }
 		elseif token.type == "id" then
 			local name = self:consume().value
-			return { kind = "reference", name = name }
+			return { kind = "reference", name = name, line = token.line, column = token.column }
 		end
 
 		self:report_error(`unexpected token in type: {token.value}`)
@@ -336,6 +409,7 @@ do
 	end
 
 	function parser:parse_object_type(): any
+		local start_token = self:peek()
 		self:consume("{")
 		local fields = {}
 		if self:peek().value ~= "}" then
@@ -350,7 +424,12 @@ do
 			until self:peek().value == "}"
 		end
 		self:consume("}")
-		return { kind = "object", fields = fields }
+		return {
+			kind = "object",
+			fields = fields,
+			line = start_token.line,
+			column = start_token.column,
+		}
 	end
 end
 

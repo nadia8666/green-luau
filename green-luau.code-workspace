@@ -1,0 +1,16 @@
+{
+	"folders": [
+		{
+			"path": ".",
+			"name": "root"
+		},
+		{
+			"path": "./src",
+			"name": "src"
+		}
+	],
+	"settings": {
+		"stylua.targetReleaseVersion": "latest",
+		"luau-lsp.server.baseLuaurc": "~/.lute/typedefs/1.0.0/.luaurc"
+	}
+}

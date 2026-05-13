@@ -32,7 +32,7 @@ function util.print(...: any)
 	for index = 1, arg_count do
 		local target = args[index]
 
-		out = `{out}{index > 1 and " " or ""}{typeof(target) == "table" and util.format_table(target, 0) or target}`
+		out ..= `{index > 1 and " " or ""}{typeof(target) == "table" and util.format_table(target, 0) or target}`
 	end
 
 	print(out)
@@ -49,7 +49,35 @@ function util.table.concat_up_to(entries: { [number]: string }, index: number, s
 			break
 		end
 		local value = entries[idx]
-		out = `{out}{idx > 1 and separator or ""}{value}`
+		out ..= `{idx > 1 and separator or ""}{value}`
+	end
+
+	return out
+end
+
+local formatting = {
+	reset = "\27[0m",
+	bold = "\27[1m",
+	
+	r = "\27[31m",
+	y = "\27[33m",
+	b = "\27[34m",
+	g = "\27[90m",
+}
+
+function util.pretty_diagnostics(diagnostics: {[number]: {severity: string, message: string, line: number?, column: number?}})
+	local out = ""
+	for i, diag in ipairs(diagnostics) do
+		local color = diag.severity == "error" and formatting.r or formatting.y
+		local label = `{formatting.bold}{color}{diag.severity:upper()}{formatting.reset}`
+		
+		local pos = ""
+		if diag.line and diag.column then
+			pos = `{formatting.g}[{diag.line}:{diag.column}]{formatting.reset} `
+		end
+
+		local line_entry = `{label} {pos}{diag.message}`
+		out ..= `{line_entry}{(i < #diagnostics and "\n" or "")}`
 	end
 
 	return out

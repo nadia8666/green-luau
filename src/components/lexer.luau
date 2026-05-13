@@ -124,44 +124,50 @@ function lexer:build()
 			end
 		elseif string.match(char, "[%a_]") then
 			-- generic
+			local start_line = self.line
+			local start_column = self.column
 			local start = self.cursor
 			while self.cursor <= self.length and string.match(self:peek(), "[%w_]") do
-				self.cursor += 1
+				self:consume_char()
 			end
 			local value = string.sub(self.input, start, self.cursor - 1)
 			table.insert(tokens, {
 				type = keywords[value] and "keyword" or "id",
 				value = value,
-				line = self.line,
-				column = self.column - #value,
+				line = start_line,
+				column = start_column,
 			})
 		elseif string.match(char, "%d") then
 			-- number literals
+			local start_line = self.line
+			local start_column = self.column
 			local start = self.cursor
 			while self.cursor <= self.length and string.match(self:peek(), "%d") do
-				self.cursor += 1
+				self:consume_char()
 			end
 			local value = string.sub(self.input, start, self.cursor - 1)
 			table.insert(tokens, {
 				type = "num",
 				value = value,
-				line = self.line,
-				column = self.column - #value,
+				line = start_line,
+				column = start_column,
 			})
 		elseif char == '"' or char == "'" or char == "`" then
 			-- string literal
+			local start_line = self.line
+			local start_column = self.column
 			self:consume_char()
 			local start = self.cursor
 			while self.cursor <= self.length and self:peek() ~= char do
-				self.cursor += 1
+				self:consume_char()
 			end
 			local value = string.sub(self.input, start, self.cursor - 1)
 			self:consume_char()
 			table.insert(tokens, {
 				type = "str",
 				value = value,
-				line = self.line,
-				column = self.column - #value,
+				line = start_line,
+				column = start_column,
 			})
 		else
 			-- operators
@@ -174,16 +180,18 @@ function lexer:build()
 end
 
 function lexer:make_symbol()
+	local start_line = self.line
+	local start_column = self.column
 	local char = self:consume_char()
 	local next_char = self:peek()
 	local combined = char .. next_char
 
 	if multi_symbols[combined] then
 		self:consume_char()
-		return { type = "symbol", value = combined, line = self.line, column = self.column - #combined }
+		return { type = "symbol", value = combined, line = start_line, column = start_column }
 	end
 
-	return { type = "symbol", value = char, line = self.line, column = self.column - #char }
+	return { type = "symbol", value = char, line = start_line, column = start_column }
 end
 
 return lexer
