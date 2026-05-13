@@ -2,6 +2,7 @@
 
 local types = require("./types")
 local type_system = require("./type_system")
+local json = require("@std/json")
 
 local parser = {}
 parser.__index = parser
@@ -39,10 +40,25 @@ function parser:peek()
 	return self.tokens[self.cursor]
 end
 
-function parser:report_error(message: string)
-	local token = self:peek()
-	local log = `[Line {token.line}:{token.column}] {message}`
-	error(log)
+--[[
+	report parsing errors
+	use is_json if passing through a raw json error
+]]
+function parser:report_error(reason: string, is_json: boolean?)
+	local log
+	
+	if is_json then
+		log = reason
+	else
+		local token = self:peek()
+		log = json.serialize({
+			error_type = "PARSE",
+			token = token,
+			reason = reason
+		})
+	end
+
+	error(log, 0)
 end
 
 --[[
@@ -52,7 +68,11 @@ end
 function parser:consume(expected_value: string?)
 	local token = self.tokens[self.cursor]
 	if expected_value and token.value ~= expected_value then
-		self:report_error(`expected "{expected_value}" but got "{token.value}"`)
+		self:report_error(json.serialize({
+			error_type = "PARSE",
+			token = token,
+			reason = `expected "{expected_value}" but got "{token.value}"`,
+		}))
 	end
 	self.cursor += 1
 	return token
@@ -200,7 +220,13 @@ do
 			end
 		end
 
-		error(`failed for statement at {token.value}`)
+		self:report_error(json.serialize({
+			error_type = "PARSE",
+			token = token,
+			reason = "failed to parse statement",
+		}), true)
+
+		return
 	end
 
 	function parser:parse_call(id_token: types.token)
@@ -300,7 +326,12 @@ do
 			return { type = "id", name = lit.value, line = lit.line, column = lit.column }
 		end
 
-		error(`unexpected token in expression: {lit.value}`)
+		self:report_error(json.serialize({
+			error_type = "PARSE",
+			token = lit,
+			reason = `unexpected token in expression: {lit.value}`,
+		}), true)
+		return
 	end
 
 	function parser:parse_object_literal(): types.node
@@ -309,12 +340,17 @@ do
 		local fields = {}
 		if self:peek().value ~= "}" then
 			repeat
-				local field_name = self:consume().value
+				local token = self:consume()
+				local field_name = token.value
 				local separator = self:peek().value
 				if separator == ":" or separator == "=" then
 					self:consume(separator)
 				else
-					error(`expected ":" or "=" but got "{separator}"`)
+					self:report_error(json.serialize({
+						error_type = "PARSE",
+						token = token,
+						reason = `expected ":" or "=" but got "{separator}"`,
+					}), true)
 				end
 				local field_value = self:parse_expression()
 				table.insert(fields, { name = field_name, value = field_value })
@@ -409,7 +445,11 @@ do
 			return { kind = "reference", name = name, line = token.line, column = token.column }
 		end
 
-		self:report_error(`unexpected token in type: {token.value}`)
+		self:report_error(json.serialize({
+			error_type = "PARSE_TYPE",
+			token = token,
+			reason = `unexpected token in type: {token.value}`,
+		}), true)
 		return nil
 	end
 

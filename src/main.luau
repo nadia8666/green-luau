@@ -38,23 +38,15 @@ function main.check(input: string): { diagnostics: any, ast: any? }
 	local success, result = pcall(function()
 		local tokens = lexer.new(input):build()
 		local ast = parser.new(tokens):build()
-		local checker = type_checker.new(ts)
-		local diagnostics = checker:check_tree(ast)
+		local diagnostics = type_checker.new(ts):check_tree(ast)
 
 		return { diagnostics = diagnostics, ast = ast }
 	end)
 
-	-- TODO: provide real failure diagnostics
 	if not success then
 		return {
-			diagnostics = {
-				{
-					severity = "error",
-					message = tostring(result),
-					line = 1,
-					column = 1,
-				},
-			},
+			failed = true,
+			reason = result
 		}
 	end
 

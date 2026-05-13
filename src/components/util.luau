@@ -7,7 +7,7 @@ function util.format_table(tab: { any }, indents: number): string
 	local outer_spacing = string.rep("  ", indents)
 	local inner_spacing = string.rep("  ", indents + 1)
 
-	for key, value in pairs(tab) do
+	for key, value in tab do
 		local formatted_key = type(key) == "string" and key or `[{key}]`
 		local formatted_value = ""
 
@@ -67,7 +67,7 @@ local formatting = {
 
 function util.pretty_diagnostics(diagnostics: {[number]: {severity: string, message: string, line: number?, column: number?}})
 	local out = ""
-	for i, diag in ipairs(diagnostics) do
+	for i, diag in diagnostics do
 		local color = diag.severity == "error" and formatting.r or formatting.y
 		local label = `{formatting.bold}{color}{diag.severity:upper()}{formatting.reset}`
 		
