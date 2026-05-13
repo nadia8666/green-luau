@@ -1,0 +1,52 @@
+name: release
+
+on:
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: write
+
+env:
+  VERSION: "0.0.1"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout repo
+        uses: actions/checkout@v4
+
+      - name: setup go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: download lute
+        run: |
+          curl -L -o lute.zip https://github.com/luau-lang/lute/releases/download/v1.0.0/lute-windows-x86_64.zip
+          unzip lute.zip
+
+      - name: build
+        run: |
+          GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o green-luau.exe main.go
+
+      - name: package
+        run: |
+          zip green-luau-windows-x86_64.zip green-luau.exe
+
+      - name: create tag
+        run: |
+          git tag -f ${{ env.VERSION }}
+          git push -f origin ${{ env.VERSION }}
+
+      - name: release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ env.VERSION }}
+          name: v${{ env.VERSION }}
+          generateReleaseNotes: true
+          allowUpdates: true
+          replacesArtifacts: true
+          artifacts: "green-luau-windows-x86_64.zip"
+          token: ${{ secrets.GITHUB_TOKEN }}
