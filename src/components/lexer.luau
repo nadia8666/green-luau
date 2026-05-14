@@ -24,11 +24,11 @@ local multi_symbols = {
 	"...",
 }
 
-for _, keyword_value in keywords do
+for _, keyword_value in ipairs(keywords) do
 	keywords[keyword_value] = true
 end
 
-for _, symbol in multi_symbols do
+for _, symbol in ipairs(multi_symbols) do
 	multi_symbols[symbol] = true
 end
 
@@ -190,24 +190,22 @@ function lexer:make_symbol()
 
 	while true do
 		local next_combined = combined .. self:peek()
-		local escape = false
 
+		local found = false
 		for symbol in multi_symbols do
-			if typeof(symbol) == "number" then
+			if typeof(symbol) == "number" or typeof(symbol) == "boolean" then
 				continue
 			end
 
 			if symbol:sub(0, #next_combined) == next_combined then
 				combined = next_combined
+				found = true
 				self:consume_char()
-				break
-			else
-				escape = true
 				break
 			end
 		end
 
-		if escape then
+		if not found then
 			break
 		end
 	end

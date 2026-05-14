@@ -16,6 +16,17 @@ test.suite("transpile", function(suite)
 		asserts.eq("const x = 1", helper.new("const x = 1;"))
 	end)
 
+	suite:case("variables.assignment", function(asserts)
+		asserts.eq(
+			[[local x = 1
+x += 1
+x -= 1]],
+			helper.new([[let x = 1;
+x += 1;
+x -= 1;]])
+		)
+	end)
+
 	suite:case("types.noTranspileTypes", function(asserts)
 		asserts.eq(
 			[[]],
@@ -114,7 +125,7 @@ const test_value: test = {
 		)
 	end)
 
-	suite:case("transpile.generics.genericFunction", function(asserts)
+	suite:case("types.generics.genericFunction", function(asserts)
 		asserts.eq(
 			[[function test(x)
 	return x
