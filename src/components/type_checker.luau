@@ -39,13 +39,23 @@ end
 function type_checker:lookup_symbol(name: string): types.type_node?
 	for i = #self.scopes, 1, -1 do
 		if self.scopes[i][name] then
-			return self.scopes[i][name]
+			local res = self.scopes[i][name]
+			return res
 		end
 	end
 	return nil
 end
 
+function type_checker:resolve_type(type_expr: types.type_node): types.type_node
+	return self.type_system:resolve_type(type_expr, function(name)
+		return self:lookup_symbol(name)
+	end)
+end
+
 function type_checker:check_node(node: types.node): types.type_node?
+	if not node then
+		return nil
+	end
 	if node.type == "var" then
 		return self:check_var(node)
 	elseif node.type == "func" then
@@ -86,6 +96,14 @@ function type_checker:check_node(node: types.node): types.type_node?
 		return field_type
 	elseif node.type == "assign" then
 		return self:check_assignment(node)
+	elseif node.type == "return" then
+		return node.value and self:check_node(node.value) or nil
+	elseif node.type == "tuple_literal" then
+		local element_types = {}
+		for _, val in node.values do
+			table.insert(element_types, self:check_node(val) or { kind = "builtin", name = "any" })
+		end
+		return { kind = "tuple", types = element_types }
 	end
 	return nil
 end
@@ -94,7 +112,7 @@ function type_checker:check_var(node: types.node)
 	local declared_type = { kind = "builtin", name = "any" }
 
 	if node.type_annotation then
-		declared_type = self.type_system:resolve_type(node.type_annotation)
+		declared_type = self:resolve_type(node.type_annotation)
 		if declared_type.kind == "reference" and not self.type_system:get_type(declared_type.name) then
 			self:add_diagnostic(
 				"error",
@@ -144,25 +162,48 @@ function type_checker:check_var(node: types.node)
 end
 
 function type_checker:check_func(node: types.node)
+	self:push_scope()
+	if node.type_params then
+		for _, name in node.type_params do
+			self:declare_symbol(name, { kind = "generic", name = name })
+		end
+	end
+
 	local param_types = {}
 	for _, param in node.params do
-		local param_type = self.type_system:resolve_type(param.type_annotation or { kind = "builtin", name = "any" })
+		local param_type = self:resolve_type(param.type_annotation or { kind = "builtin", name = "any" })
 		table.insert(param_types, param_type)
 	end
 
-	local func_type = { kind = "function", params = param_types }
+	local return_type = node.return_type and self:resolve_type(node.return_type) or { kind = "builtin", name = "any" }
+	local func_type = { kind = "function", params = param_types, returns = return_type, type_params = node.type_params }
 
 	if node.name then
-		self:declare_symbol(node.name, func_type)
+		local current_scope = self.scopes[#self.scopes]
+		local parent_scope = self.scopes[#self.scopes - 1]
+		if parent_scope then
+			parent_scope[node.name] = func_type
+		else
+			current_scope[node.name] = func_type
+		end
 	end
 
-	self:push_scope()
 	for i, param in node.params do
 		self:declare_symbol(param.name, param_types[i])
 	end
 
 	for _, stmt in node.body do
-		self:check_node(stmt)
+		local stmt_type = self:check_node(stmt)
+		if stmt.type == "return" then
+			if stmt_type and not self.type_system:check_assignable(stmt_type, return_type) then
+				self:add_diagnostic(
+					"error",
+					`return type mismatch: expected {return_type.name or return_type.kind}, got {stmt_type.name or stmt_type.kind}`,
+					stmt.line,
+					stmt.column
+				)
+			end
+		end
 	end
 
 	self:pop_scope()
@@ -180,6 +221,21 @@ function type_checker:check_call(node: types.node)
 		return { kind = "builtin", name = "any" }
 	end
 
+	if callee_type.type_params then
+		local mapping = {}
+		if node.type_args then
+			for i, name in callee_type.type_params do
+				local arg = node.type_args[i]
+				if arg then
+					mapping[name] = self:resolve_type(arg)
+				else
+					mapping[name] = { kind = "builtin", name = "any" }
+				end
+			end
+		end
+		callee_type = self.type_system:substitute(callee_type, mapping)
+	end
+
 	if #node.arguments < #callee_type.params then
 		self:add_diagnostic(
 			"error",
@@ -194,13 +250,20 @@ function type_checker:check_call(node: types.node)
 		local param_type = callee_type.params[i]
 
 		if not param_type then
-			self:add_diagnostic(
-				"error",
-				`argument mismatch for expression, expected {#callee_type.params} args, got {i}`,
-				arg.line,
-				arg.column
-			)
-			continue
+			local last_param = callee_type.params[#callee_type.params]
+			if last_param and last_param.kind == "variadic" then
+				param_type = last_param.inner
+			else
+				self:add_diagnostic(
+					"error",
+					`argument mismatch for expression, expected {#callee_type.params} args, got {i}`,
+					arg.line,
+					arg.column
+				)
+				continue
+			end
+		elseif param_type.kind == "variadic" then
+			param_type = param_type.inner
 		end
 
 		if arg_type and not self.type_system:check_assignable(arg_type, param_type) then
@@ -213,7 +276,7 @@ function type_checker:check_call(node: types.node)
 		end
 	end
 
-	return { kind = "builtin", name = "any" }
+	return callee_type.returns or { kind = "builtin", name = "any" }
 end
 
 function type_checker:check_binary(node: types.node)
@@ -240,7 +303,11 @@ function type_checker:check_object_literal(node: types.node)
 end
 
 function type_checker:check_type_decl(node: types.node)
-	self.type_system:register_type(node.name, node.type_def)
+	local type_def = node.type_def
+	if node.type_params then
+		type_def = { kind = "generic", type_params = node.type_params, inner = type_def }
+	end
+	self.type_system:register_type(node.name, type_def)
 	return nil
 end
 

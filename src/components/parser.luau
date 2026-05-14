@@ -46,7 +46,7 @@ end
 ]]
 function parser:report_error(reason: string, is_json: boolean?)
 	local log
-	
+
 	if is_json then
 		log = reason
 	else
@@ -54,7 +54,7 @@ function parser:report_error(reason: string, is_json: boolean?)
 		log = json.serialize({
 			error_type = "PARSE",
 			token = token,
-			reason = reason
+			reason = reason,
 		})
 	end
 
@@ -76,6 +76,16 @@ function parser:consume(expected_value: string?)
 	end
 	self.cursor += 1
 	return token
+end
+
+function parser:multi_consume(expected_values: { string })
+	local tokens = {}
+
+	for _, token in expected_values do
+		table.insert(tokens, self:consume(token))
+	end
+
+	return tokens
 end
 
 function parser:register_statement(
@@ -122,6 +132,7 @@ function parser:register_defaults()
 		local start_token = parser_self:peek()
 		parser_self:consume("type")
 		local type_name = parser_self:consume().value
+		local type_params = parser_self:parse_type_params()
 		parser_self:consume("=")
 		local type_def = parser_self:parse_type_expr()
 		parser_self:consume(";")
@@ -129,7 +140,27 @@ function parser:register_defaults()
 		return {
 			type = "type_decl",
 			name = type_name,
+			type_params = type_params,
 			type_def = type_def,
+			line = start_token.line,
+			column = start_token.column,
+		}
+	end)
+
+	self:register_statement("return", function(parser_self)
+		local start_token = parser_self:peek()
+		parser_self:consume("return")
+		local value = nil
+		local next_val = parser_self:peek().value
+		if next_val ~= "}" and next_val ~= ";" and next_val ~= "else" then
+			value = parser_self:parse_expression()
+		end
+		if parser_self:peek().value == ";" then
+			parser_self:consume(";")
+		end
+		return {
+			type = "return",
+			value = value,
 			line = start_token.line,
 			column = start_token.column,
 		}
@@ -139,12 +170,31 @@ function parser:register_defaults()
 		local start_token = parser_self:peek()
 		parser_self:consume("function")
 		local func_name = parser_self:consume().value
+		local type_params = parser_self:parse_type_params()
 		parser_self:consume("(")
 		local params = {}
 		if parser_self:peek().value ~= ")" then
 			repeat
-				local param_name = parser_self:consume().value
+				local param = parser_self:consume()
+				local param_name = param.value
 				local param_type = nil
+				if param_name == "..." then
+					-- variadic
+					if parser_self:peek().value == ":" then
+						parser_self:consume(":")
+						param_type = parser_self:parse_type_expr()
+						if param_type then
+							param_type.variadic = true -- unused right now but i can see it in future use
+						end
+					end
+					table.insert(params, { name = "...", type_annotation = {
+						kind = "variadic",
+						inner = param_type,
+						line = param.line,
+						column = param.column,
+					}, variadic = true })
+					break
+				end
 				if parser_self:peek().value == ":" then
 					parser_self:consume(":")
 					param_type = parser_self:parse_type_expr()
@@ -156,6 +206,11 @@ function parser:register_defaults()
 			until parser_self:peek().value == ")"
 		end
 		parser_self:consume(")")
+		local return_type = nil
+		if parser_self:peek().value == ":" then
+			parser_self:consume(":")
+			return_type = parser_self:parse_type_expr()
+		end
 		parser_self:consume("{")
 		local body = {}
 		while parser_self:peek().value ~= "}" do
@@ -165,7 +220,9 @@ function parser:register_defaults()
 		return {
 			type = "func",
 			name = func_name,
+			type_params = type_params,
 			params = params,
+			return_type = return_type,
 			body = body,
 			line = start_token.line,
 			column = start_token.column,
@@ -184,6 +241,34 @@ end
 -- parsers
 do
 	-- use this. this is the one you call first. it is the one that trickles down to all other parsers
+	function parser:parse_primary(): types.node
+		local left = self:parse_literal()
+
+		while true do
+			local next_token = self:peek()
+			if next_token.value == "." then
+				self:consume(".")
+				local property_token = self:consume()
+				if property_token.type ~= "id" then
+					self:report_error(`expected property name after "." but got {property_token.value}`)
+				end
+				left = {
+					type = "member",
+					object = left,
+					property = property_token.value,
+					line = left.line,
+					column = left.column,
+				}
+			elseif next_token.value == "(" or next_token.value == "<" then
+				left = self:parse_call(left)
+			else
+				break
+			end
+		end
+
+		return left
+	end
+
 	function parser:parse_expression(): types.node
 		local left = self:parse_unary_expression()
 
@@ -210,21 +295,27 @@ do
 				return self.statement_parsers[token.value][1](self, unpack(self.statement_parsers[token.value][2]))
 			end
 		elseif token.type == "id" then
-			local left = self:parse_primary()
+			local expr = self:parse_expression()
 			local next_token = self:peek()
 
-			if next_token.value == "(" then
-				return self:parse_call(left)
-			elseif next_token.value == "=" or next_token.value == "+=" or next_token.value == "-=" then
-				return self:parse_assignment(left)
+			if next_token.value == "=" or next_token.value == "+=" or next_token.value == "-=" then
+				return self:parse_assignment(expr)
 			end
+
+			if next_token.value == ";" then
+				self:consume(";")
+			end
+			return expr
 		end
 
-		self:report_error(json.serialize({
-			error_type = "PARSE",
-			token = token,
-			reason = `failed to parse statement: unexpected token "{token.value}"`,
-		}), true)
+		self:report_error(
+			json.serialize({
+				error_type = "PARSE",
+				token = token,
+				reason = `failed to parse statement: unexpected token "{token.value}"`,
+			}),
+			true
+		)
 
 		return nil
 	end
@@ -273,27 +364,6 @@ do
 		return self:parse_primary()
 	end
 
-	function parser:parse_primary(): types.node
-		local left = self:parse_literal()
-
-		while self:peek().value == "." do
-			self:consume(".")
-			local property_token = self:consume()
-			if property_token.type ~= "id" then
-				self:report_error(`expected property name after "." but got {property_token.value}`)
-			end
-			left = {
-				type = "member",
-				object = left,
-				property = property_token.value,
-				line = left.line,
-				column = left.column,
-			}
-		end
-
-		return left
-	end
-
 	function parser:parse_literal(): types.node
 		local token = self:peek()
 
@@ -309,6 +379,8 @@ do
 			}
 		elseif token.value == "{" then
 			return self:parse_object_literal()
+		elseif token.value == "[" then
+			return self:parse_tuple_literal()
 		end
 
 		local lit = self:consume()
@@ -323,11 +395,14 @@ do
 			return { type = "id", name = lit.value, line = lit.line, column = lit.column }
 		end
 
-		self:report_error(json.serialize({
-			error_type = "PARSE",
-			token = lit,
-			reason = `unexpected token in expression: {lit.value}`,
-		}), true)
+		self:report_error(
+			json.serialize({
+				error_type = "PARSE",
+				token = lit,
+				reason = `unexpected token in expression: {lit.value}`,
+			}),
+			true
+		)
 		return
 	end
 
@@ -343,11 +418,14 @@ do
 				if separator == ":" or separator == "=" then
 					self:consume(separator)
 				else
-					self:report_error(json.serialize({
-						error_type = "PARSE",
-						token = token,
-						reason = `expected ":" or "=" but got "{separator}"`,
-					}), true)
+					self:report_error(
+						json.serialize({
+							error_type = "PARSE",
+							token = token,
+							reason = `expected ":" or "=" but got "{separator}"`,
+						}),
+						true
+					)
 				end
 				local field_value = self:parse_expression()
 				table.insert(fields, { name = field_name, value = field_value })
@@ -434,19 +512,30 @@ do
 
 		if token.value == "{" then
 			return self:parse_object_type()
+		elseif token.value == "[" then
+			return self:parse_tuple_type()
+		elseif token.value == "..." then
+			print("i am consuming ...")
+			self:consume("...")
+			local inner = self:parse_type_expr()
+			return { kind = "variadic", inner = inner, line = token.line, column = token.column }
 		elseif token.type == "str" then
 			local value = self:consume().value
-			return { kind = "literal", value = value, line = token.line, column = token.column }
+			return { kind = "literal", value = value, quote = token.quote, line = token.line, column = token.column }
 		elseif token.type == "id" then
 			local name = self:consume().value
-			return { kind = "reference", name = name, line = token.line, column = token.column }
+			local type_args = self:parse_type_args()
+			return { kind = "reference", name = name, type_args = type_args, line = token.line, column = token.column }
 		end
 
-		self:report_error(json.serialize({
-			error_type = "PARSE_TYPE",
-			token = token,
-			reason = `unexpected token in type: {token.value}`,
-		}), true)
+		self:report_error(
+			json.serialize({
+				error_type = "PARSE_TYPE",
+				token = token,
+				reason = `unexpected token in type: {token.value}`,
+			}),
+			true
+		)
 		return nil
 	end
 
@@ -466,9 +555,102 @@ do
 			until self:peek().value == "}"
 		end
 		self:consume("}")
+		return { kind = "object", fields = fields, line = start_token.line, column = start_token.column }
+	end
+
+	function parser:parse_tuple_type(): any
+		local start_token = self:peek()
+		self:consume("[")
+		local types = {}
+		if self:peek().value ~= "]" then
+			repeat
+				table.insert(types, self:parse_type_expr())
+				if self:peek().value == "," then
+					self:consume(",")
+				end
+			until self:peek().value == "]"
+		end
+		self:consume("]")
+		return { kind = "tuple", types = types, line = start_token.line, column = start_token.column }
+	end
+
+	function parser:parse_type_params(): { string }?
+		if self:peek().value == "<" then
+			self:consume("<")
+			local params = {}
+			repeat
+				table.insert(params, self:consume().value)
+				if self:peek().value == "," then
+					self:consume(",")
+				end
+			until self:peek().value == ">"
+			self:consume(">")
+			return params
+		end
+		return nil
+	end
+
+	function parser:parse_call(callee: types.node): types.node
+		local start_token = self:peek()
+		local type_args = nil
+		if self:peek().value == "<" then
+			type_args = self:parse_type_args()
+		end
+
+		self:consume("(")
+		local arguments = {}
+		if self:peek().value ~= ")" then
+			repeat
+				table.insert(arguments, self:parse_expression())
+				if self:peek().value == "," then
+					self:consume(",")
+				end
+			until self:peek().value == ")"
+		end
+		self:consume(")")
+
 		return {
-			kind = "object",
-			fields = fields,
+			type = "call",
+			callee = callee,
+			type_args = type_args,
+			arguments = arguments,
+			line = start_token.line,
+			column = start_token.column,
+		}
+	end
+
+	function parser:parse_type_args(): { any }?
+		if self:peek().value == "<" then
+			self:consume("<")
+			local args = {}
+			repeat
+				table.insert(args, self:parse_type_expr())
+				if self:peek().value == "," then
+					self:consume(",")
+				end
+			until self:peek().value == ">"
+			self:consume(">")
+			return args
+		end
+		return nil
+	end
+
+	function parser:parse_tuple_literal(): types.node
+		local start_token = self:peek()
+		self:consume("[")
+		local values = {}
+		if self:peek().value ~= "]" then
+			repeat
+				table.insert(values, self:parse_expression())
+				if self:peek().value == "," then
+					self:consume(",")
+				end
+			until self:peek().value == "]"
+		end
+		self:consume("]")
+		return {
+			type = "tuple_literal",
+			values = values,
 			line = start_token.line,
 			column = start_token.column,
 		}

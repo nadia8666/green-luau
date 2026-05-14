@@ -9,6 +9,7 @@ local keywords = {
 	"if",
 	"else",
 	"type",
+	"return",
 }
 
 local multi_symbols = {
@@ -20,6 +21,7 @@ local multi_symbols = {
 	">=",
 	"&&",
 	"||",
+	"...",
 }
 
 for _, keyword_value in keywords do
@@ -184,11 +186,33 @@ function lexer:make_symbol()
 	local start_line = self.line
 	local start_column = self.column
 	local char = self:consume_char()
-	local next_char = self:peek()
-	local combined = char .. next_char
+	local combined = char
+
+	while true do
+		local next_combined = combined .. self:peek()
+		local escape = false
+
+		for symbol in multi_symbols do
+			if typeof(symbol) == "number" then
+				continue
+			end
+
+			if symbol:sub(0, #next_combined) == next_combined then
+				combined = next_combined
+				self:consume_char()
+				break
+			else
+				escape = true
+				break
+			end
+		end
+
+		if escape then
+			break
+		end
+	end
 
 	if multi_symbols[combined] then
-		self:consume_char()
 		return { type = "symbol", value = combined, line = start_line, column = start_column }
 	end
 

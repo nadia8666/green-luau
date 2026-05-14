@@ -6,6 +6,9 @@ function compilation_helper.new(code: string)
 	local success, output, stage = main.run_full(code)
 
 	if success then
+		util.print("-----")
+		util.print(output)
+		util.print("-----")
 		return output
 	end
 

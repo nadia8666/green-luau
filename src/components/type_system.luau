@@ -17,27 +17,43 @@ function type_system:register_type(name: string, type_def: types.type_node)
 	self.types[name] = type_def
 end
 
-function type_system:get_type(name: string): types.type_node?
-	return self.types[name] or self.builtin_types[name]
+function type_system:get_type(name: string, resolver: ((string) -> types.type_node?)?): types.type_node?
+	return self.builtin_types[name] or (resolver and resolver(name)) or self.types[name]
 end
 
-function type_system:resolve_type(type_expr: types.type_node): types.type_node
+function type_system:resolve_type(
+	type_expr: types.type_node,
+	resolver: ((string) -> types.type_node?)?
+): types.type_node
 	if typeof(type_expr) == "table" then
 		if type_expr.kind == "object" then
-			for _, field in type_expr.fields do
-				field.field_type = self:resolve_type(field.field_type)
+			for k, v in type_expr.fields do
+				if typeof(v) == "table" and v.name then
+					v.field_type = self:resolve_type(v.field_type, resolver)
+				else
+					type_expr.fields[k] = self:resolve_type(v, resolver)
+				end
 			end
 			return type_expr
 		elseif type_expr.kind == "literal" then
 			return type_expr
 		elseif type_expr.kind == "reference" then
-			return self:get_type(type_expr.name) or type_expr
+			local t = self:get_type(type_expr.name, resolver)
+			if t and t.kind == "generic" and type_expr.type_args then
+				local mapping = {}
+				for i, param in t.type_params do
+					mapping[param] =
+						self:resolve_type(type_expr.type_args[i] or { kind = "builtin", name = "any" }, resolver)
+				end
+				return self:substitute(t.inner, mapping)
+			end
+			return t or type_expr
 		elseif type_expr.kind == "union" then
 			return type_expr
 		end
 		return type_expr
 	elseif typeof(type_expr) == "string" then
-		return self:get_type(type_expr)
+		return self:get_type(type_expr, resolver)
 	end
 	return type_expr
 end
@@ -126,7 +142,70 @@ function type_system:check_assignable(from: types.type_node, to: types.type_node
 		return true
 	end
 
+	if from.kind == "tuple" and to.kind == "tuple" then
+		if #from.types ~= #to.types then
+			return false
+		end
+		for i = 1, #from.types do
+			if not self:check_assignable(from.types[i], to.types[i]) then
+				return false
+			end
+		end
+		return true
+	end
+
+	if from.kind == "variadic" and to.kind == "variadic" then
+		return self:check_assignable(from.inner, to.inner)
+	end
+
+	if from.kind == "generic" and to.kind == "generic" then
+		return from.name == to.name
+	end
+
 	return false
+end
+
+--TODO: see if this can be cleaned up
+function type_system:substitute(type_expr: types.type_node, mapping: { [string]: types.type_node }): types.type_node
+	if not type_expr then
+		return nil
+	end
+	if (type_expr.kind == "reference" or type_expr.kind == "generic") and mapping[type_expr.name] then
+		return mapping[type_expr.name]
+	end
+	if type_expr.kind == "object" then
+		local new_fields = {}
+		for i, v in type_expr.fields do
+			if typeof(v) == "table" and v.name then
+				table.insert(new_fields, { name = v.name, field_type = self:substitute(v.field_type, mapping) })
+			else
+				new_fields[i] = self:substitute(v, mapping)
+			end
+		end
+		return { kind = "object", fields = new_fields }
+	end
+	if type_expr.kind == "function" then
+		local new_params = {}
+		for _, p in type_expr.params do
+			table.insert(new_params, self:substitute(p, mapping))
+		end
+		return {
+			kind = "function",
+			params = new_params,
+			returns = type_expr.returns and self:substitute(type_expr.returns, mapping),
+		}
+	end
+	if type_expr.kind == "tuple" then
+		local new_types = {}
+		for _, t in type_expr.types do
+			table.insert(new_types, self:substitute(t, mapping))
+		end
+		return { kind = "tuple", types = new_types }
+	end
+	if type_expr.kind == "variadic" then
+		return { kind = "variadic", inner = self:substitute(type_expr.inner, mapping) }
+	end
+	return type_expr
 end
 
 function type_system:export_types(): { [string]: types.type_node }

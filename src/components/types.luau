@@ -21,7 +21,7 @@ export type tree = {
 }
 
 export type type_node = {
-	kind: "builtin" | "reference" | "literal" | "object" | "function" | "union",
+	kind: "builtin" | "reference" | "literal" | "object" | "function" | "union" | "tuple" | "generic" | "variadic",
 	[string]: any,
 }
 

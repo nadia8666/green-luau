@@ -1,6 +1,8 @@
 --!nonstrict
 
-local util = {}
+local util = {
+	debug_mode = false
+}
 
 function util.format_table(tab: { any }, indents: number): string
 	local out = "{\n"
@@ -24,6 +26,8 @@ function util.format_table(tab: { any }, indents: number): string
 end
 
 function util.print(...: any)
+	if not util.debug_mode then return end
+
 	local arg_count = select("#", ...)
 	local args = { ... }
 

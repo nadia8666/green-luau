@@ -27,6 +27,12 @@ function transpiler:build_node(node: types.node): string
 	return handler(self, node)
 end
 
+--[[
+	TODO: refactor node system
+	split each node type into its own oop class with a parse function that checks if its meant to be parsed and returns the node if so
+	and a transpile function that outputs luau code
+]]
+
 function transpiler:register_defaults()
 	self:register_handler("program", function(self, node)
 		local lines = {}
@@ -55,7 +61,7 @@ function transpiler:register_defaults()
 		local params = table.concat(param_names, ", ")
 		local body_lines = {}
 		for _, stmt in node.body do
-			table.insert(body_lines, `  {self:build_node(stmt)}`)
+			table.insert(body_lines, `	{self:build_node(stmt)}`)
 		end
 		local body = table.concat(body_lines, "\n")
 		return `function {node.name}({params})\n{body}\nend`
@@ -66,6 +72,7 @@ function transpiler:register_defaults()
 		for _, arg in node.arguments do
 			table.insert(args, self:build_node(arg))
 		end
+
 		return `{self:build_node(node.callee)}({table.concat(args, ", ")})`
 	end)
 
@@ -113,7 +120,7 @@ function transpiler:register_defaults()
 	self:register_handler("block", function(self, node)
 		local lines = {}
 		for _, stmt in node.body do
-			table.insert(lines, `  {self:build_node(stmt)}`)
+			table.insert(lines, `	{self:build_node(stmt)}`)
 		end
 		return table.concat(lines, "\n")
 	end)
@@ -139,6 +146,14 @@ function transpiler:register_defaults()
 		return `{self:build_node(node.left)} {node.operator} {self:build_node(node.value)}`
 	end)
 
+	self:register_handler("return", function(self, node)
+		if node.value then
+			return `return {self:build_node(node.value)}`
+		else
+			return "return"
+		end
+	end)
+
 	self:register_handler("comment", function(self, node)
 		if node.is_block then
 			return `--[[{node.value}]]`
@@ -158,6 +173,46 @@ function transpiler:register_defaults()
 		end
 		return "{ " .. table.concat(pairs, ", ") .. " }"
 	end)
+
+	self:register_handler("tuple_literal", function(self, node)
+		local vals = {}
+		for _, val in node.values do
+			table.insert(vals, self:build_node(val))
+		end
+		return "{ " .. table.concat(vals, ", ") .. " }"
+	end)
+
+	self:register_handler("variadic", function(self, node)
+		return "..."
+	end)
+end
+
+function transpiler:transpile_type(t: types.type_node): string
+	if not t then
+		return "any"
+	end
+	if t.kind == "builtin" then
+		return t.name
+	elseif t.kind == "reference" then
+		local args = ""
+		if t.type_args then
+			local t_args = {}
+			for _, arg in t.type_args do
+				table.insert(t_args, self:transpile_type(arg))
+			end
+			args = `<{table.concat(t_args, ", ")}>`
+		end
+		return t.name .. args
+	elseif t.kind == "tuple" then
+		local t_types = {}
+		for _, inner in t.types do
+			table.insert(t_types, self:transpile_type(inner))
+		end
+		return `[{table.concat(t_types, ", ")}]`
+	elseif t.kind == "variadic" then
+		return `...`
+	end
+	return "any"
 end
 
 function transpiler:build()
