@@ -1,4 +1,0 @@
-function sum(...: number) {
-    return 0;
-}
-sum(1, 2, 3);
