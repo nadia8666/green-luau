@@ -30,12 +30,15 @@ x -= 1;]])
 	suite:case("variables.binaryAndOr", function(asserts)
 		asserts.eq("const x = true == false and 1 or -1", helper.new("const x: number = true == false && 1 || -1;"))
 	end)
+	
 	suite:case("variables.keywordAndOr", function(asserts)
 		asserts.eq("const x = true == false and 1 or -1", helper.new("const x: number = true == false and 1 or -1;"))
 	end)
+	
 	suite:case("variables.binaryNot", function(asserts)
 		asserts.eq("const x = not true", helper.new("const x: boolean = !true;"))
 	end)
+
 	suite:case("variables.keywordNot", function(asserts)
 		asserts.eq("const x = not true", helper.new("const x: boolean = not true;"))
 	end)
