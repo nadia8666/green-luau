@@ -137,8 +137,9 @@ function transpiler:register_defaults()
 		return `{self:build_node(node.left)} {operator} {self:build_node(node.right)}`
 	end)
 
+
 	self:register_handler("unary", function(self, node)
-		local op = node.operator == "!" and "not " or node.operator
+		local op = (node.operator == "!" or node.operator == "not") and "not " or node.operator
 		return `{op}{self:build_node(node.argument)}`
 	end)
 

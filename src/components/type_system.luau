@@ -82,10 +82,7 @@ function type_system:check_assignable(from: types.type_node, to: types.type_node
 	to = self:resolve_type(to)
 
 	if from.kind == "builtin" and to.kind == "builtin" then
-		if from.name == to.name then
-			return true
-		end
-		if to.name == "any" then
+		if from.name == to.name or from.name == "any" or to.name == "any" then
 			return true
 		end
 	end

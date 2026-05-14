@@ -46,6 +46,20 @@ function type_checker:lookup_symbol(name: string): types.type_node?
 	return nil
 end
 
+function type_checker:get_type_name(t: types.type_node): string
+	t = self:resolve_type(t)
+	if t.kind == "builtin" then
+		return t.name
+	elseif t.kind == "literal" then
+		return typeof(t.value) -- TODO: for now this is fine but probably change this later to be embedded
+	elseif t.kind == "reference" then
+		return t.name
+	elseif t.kind == "generic" then
+		return t.name or "generic"
+	end
+	return t.kind
+end
+
 function type_checker:resolve_type(type_expr: types.type_node): types.type_node
 	return self.type_system:resolve_type(type_expr, function(name)
 		return self:lookup_symbol(name)
@@ -98,6 +112,8 @@ function type_checker:check_node(node: types.node): types.type_node?
 		return self:check_assignment(node)
 	elseif node.type == "return" then
 		return node.value and self:check_node(node.value) or nil
+	elseif node.type == "unary" then
+		return self:check_unary(node)
 	elseif node.type == "tuple_literal" then
 		local element_types = {}
 		for _, val in node.values do
@@ -127,9 +143,11 @@ function type_checker:check_var(node: types.node)
 		local value_type = self:check_node(node.init)
 		if node.type_annotation then
 			if value_type and not self.type_system:check_assignable(value_type, declared_type) then
+				local expected = self:get_type_name(declared_type)
+				local got = self:get_type_name(value_type)
 				self:add_diagnostic(
 					"error",
-					"type mismatch in assignment",
+					`type mismatch in assignment: expected {expected}, got {got}`,
 					declared_type.line or node.line,
 					declared_type.column or node.column
 				)
@@ -267,9 +285,14 @@ function type_checker:check_call(node: types.node)
 		end
 
 		if arg_type and not self.type_system:check_assignable(arg_type, param_type) then
+			local expected = param_type.name or param_type.kind
+			local got = arg_type.name or arg_type.kind
+			if arg_type.kind == "literal" then
+				got = typeof(arg_type.value)
+			end
 			self:add_diagnostic(
 				"error",
-				`type mismatch in call: argument {i} expected {param_type.name or param_type.kind}, got {arg_type.name or arg_type.kind}`,
+				`type mismatch in call: argument {i} expected {expected}, got {got}`,
 				arg.line,
 				arg.column
 			)
@@ -279,7 +302,42 @@ function type_checker:check_call(node: types.node)
 	return callee_type.returns or { kind = "builtin", name = "any" }
 end
 
+-- TODO: metatable support
+function type_checker:check_unary(node: types.node)
+	local arg_type = self:check_node(node.argument)
+	if node.operator == "-" then
+		if arg_type and not self.type_system:check_assignable(arg_type, { kind = "builtin", name = "number" }) then
+			self:add_diagnostic("error", "expected number", node.line, node.column)
+		end
+		return { kind = "builtin", name = "number" }
+	elseif node.operator == "!" or node.operator == "not" then
+		return { kind = "builtin", name = "boolean" }
+	end
+	return { kind = "builtin", name = "any" }
+end
+
+-- TODO: metatable support
 function type_checker:check_binary(node: types.node)
+	local left_type = self:check_node(node.left)
+	local right_type = self:check_node(node.right)
+
+	local op = node.operator
+	if op == "+" or op == "-" or op == "*" or op == "/" or op == "%" or op == "^" then
+		if left_type and not self.type_system:check_assignable(left_type, { kind = "builtin", name = "number" }) then
+			self:add_diagnostic("error", `operator {op} expected number on left`, node.line, node.column)
+		end
+		if right_type and not self.type_system:check_assignable(right_type, { kind = "builtin", name = "number" }) then
+			self:add_diagnostic("error", `operator {op} expected number on right`, node.line, node.column)
+		end
+		return { kind = "builtin", name = "number" }
+	elseif op == "==" or op == "!=" or op == "<" or op == ">" or op == "<=" or op == ">=" then
+		return { kind = "builtin", name = "boolean" }
+	elseif op == ".." then
+		return { kind = "builtin", name = "string" }
+	elseif op == "&&" or op == "||" or op == "and" or op == "or" then
+		return { kind = "builtin", name = "any" }
+	end
+
 	return { kind = "builtin", name = "any" }
 end
 
@@ -288,7 +346,14 @@ function type_checker:check_assignment(node: types.node)
 	local value_type = self:check_node(node.value)
 
 	if target_type and value_type and not self.type_system:check_assignable(value_type, target_type) then
-		self:add_diagnostic("error", "type mismatch in assignment", node.line, node.column)
+		local expected = self:get_type_name(target_type)
+		local got = self:get_type_name(value_type)
+		self:add_diagnostic(
+			"error",
+			`type mismatch in assignment: expected {expected}, got {got}`,
+			node.line,
+			node.column
+		)
 	end
 
 	return target_type

@@ -10,7 +10,9 @@ parser.__index = parser
 -- i think this is right. its PEMDAS
 local token_priority = {
 	["||"] = 1,
+	["or"] = 1,
 	["&&"] = 2,
+	["and"] = 2,
 	["=="] = 3,
 	["!="] = 3,
 	["<"] = 3,
@@ -323,16 +325,16 @@ do
 	function parser:parse_binary_expression(left: types.node, min_prec: number): types.node
 		while true do
 			local token = self:peek()
-			local prec = token.type == "symbol" and token_priority[token.value] or -1
+			local prec = token_priority[token.value] or -1
 
 			if prec < min_prec then
 				break
 			end
 
 			local operator = self:consume().value
-			local right = self:parse_primary()
+			local right = self:parse_unary_expression()
 
-			local next_prec = self:peek().type == "symbol" and token_priority[self:peek().value] or -1
+			local next_prec = token_priority[self:peek().value] or -1
 			if prec < next_prec then
 				right = self:parse_binary_expression(right, prec + 1)
 			end
@@ -351,7 +353,7 @@ do
 
 	function parser:parse_unary_expression(): types.node
 		local start_token = self:peek()
-		if start_token.value == "-" or start_token.value == "!" then
+		if start_token.value == "-" or start_token.value == "!" or start_token.value == "not" then
 			local operator = self:consume().value
 			return {
 				type = "unary",

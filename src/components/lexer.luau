@@ -10,6 +10,9 @@ local keywords = {
 	"else",
 	"type",
 	"return",
+	"and",
+	"or",
+	"not"
 }
 
 local multi_symbols = {
