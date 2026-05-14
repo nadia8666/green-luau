@@ -182,4 +182,25 @@ const x: string = test<number>(1);]]
 const x: number = test<string>(1);]]
 		)
 	end)
+
+	suite:case("types.variadic.builtin", function(asserts)
+		asserts.eq(
+			'print(1, 2, "three")',
+			helper.new([[print(1, 2, "three");]])
+		)
+	end)
+
+	suite:case("types.variadic.max", function(asserts)
+		asserts.eq(
+			'const x = math.max(1, 2, 3)',
+			helper.new([[const x: number = math.max(1, 2, 3);]])
+		)
+	end)
+
+	suite:case("types.variadic.pcall", function(asserts)
+		asserts.eq(
+			'const ok = pcall(print, "hi", "luau", `green :)`)',
+			helper.new([[const ok: any = pcall(print, "hi", "luau", `green :)`);]])
+		)
+	end)
 end)

@@ -154,6 +154,46 @@ function type_system:check_assignable(from: types.type_node, to: types.type_node
 		return true
 	end
 
+	if from.kind == "function" and to.kind == "function" then
+		local from_params = from.params
+		local to_params = to.params
+
+		local index = 1
+		while index <= #from_params or index <= #to_params do
+			local from_param = from_params[index]
+			local to_param = to_params[index]
+
+			if from_param and from_param.kind == "variadic" then
+				for index_to = index, #to_params do
+					if not self:check_assignable(to_params[index_to], from_param.inner) then
+						return false
+					end
+				end
+				break
+			elseif to_param and to_param.kind == "variadic" then
+				if not from_param or from_param.kind ~= "variadic" then
+					return false
+				end
+				if not self:check_assignable(to_param.inner, from_param.inner) then
+					return false
+				end
+				break
+			else
+				if not to_param then
+					return false
+				elseif from_param and not self:check_assignable(to_param, from_param) then
+					return false
+				end
+			end
+			index += 1
+		end
+
+		if to.returns and from.returns then
+			return self:check_assignable(from.returns, to.returns)
+		end
+		return true
+	end
+
 	if from.kind == "variadic" and to.kind == "variadic" then
 		return self:check_assignable(from.inner, to.inner)
 	end

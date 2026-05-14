@@ -515,7 +515,6 @@ do
 		elseif token.value == "[" then
 			return self:parse_tuple_type()
 		elseif token.value == "..." then
-			print("i am consuming ...")
 			self:consume("...")
 			local inner = self:parse_type_expr()
 			return { kind = "variadic", inner = inner, line = token.line, column = token.column }
