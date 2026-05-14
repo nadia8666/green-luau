@@ -10,6 +10,7 @@ function type_checker.new(type_system: types.type_node)
 	local self = setmetatable({
 		type_system = type_system,
 		scopes = { {} },
+		type_scopes = { {} },
 		diagnostics = {},
 	}, type_checker)
 
@@ -22,10 +23,12 @@ end
 
 function type_checker:push_scope()
 	table.insert(self.scopes, {})
+	table.insert(self.type_scopes, {})
 end
 
 function type_checker:pop_scope()
 	table.remove(self.scopes)
+	table.remove(self.type_scopes)
 end
 
 function type_checker:current_scope(): { [string]: types.type_node }
@@ -41,6 +44,19 @@ function type_checker:lookup_symbol(name: string): types.type_node?
 		if self.scopes[i][name] then
 			local res = self.scopes[i][name]
 			return res
+		end
+	end
+	return nil
+end
+
+function type_checker:declare_type_symbol(name: string, type_info: types.type_node)
+	self.type_scopes[#self.type_scopes][name] = type_info
+end
+
+function type_checker:lookup_type_symbol(name: string): types.type_node?
+	for i = #self.type_scopes, 1, -1 do
+		if self.type_scopes[i][name] then
+			return self.type_scopes[i][name]
 		end
 	end
 	return nil
@@ -62,7 +78,7 @@ end
 
 function type_checker:resolve_type(type_expr: types.type_node): types.type_node
 	return self.type_system:resolve_type(type_expr, function(name)
-		return self:lookup_symbol(name)
+		return self:lookup_type_symbol(name)
 	end)
 end
 
@@ -183,7 +199,7 @@ function type_checker:check_func(node: types.node)
 	self:push_scope()
 	if node.type_params then
 		for _, name in node.type_params do
-			self:declare_symbol(name, { kind = "generic", name = name })
+			self:declare_type_symbol(name, { kind = "generic", name = name })
 		end
 	end
 

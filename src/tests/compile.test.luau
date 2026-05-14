@@ -30,11 +30,11 @@ x -= 1;]])
 	suite:case("variables.binaryAndOr", function(asserts)
 		asserts.eq("const x = true == false and 1 or -1", helper.new("const x: number = true == false && 1 || -1;"))
 	end)
-	
+
 	suite:case("variables.keywordAndOr", function(asserts)
 		asserts.eq("const x = true == false and 1 or -1", helper.new("const x: number = true == false and 1 or -1;"))
 	end)
-	
+
 	suite:case("variables.binaryNot", function(asserts)
 		asserts.eq("const x = not true", helper.new("const x: boolean = !true;"))
 	end)
@@ -69,6 +69,25 @@ const test_value: other = {
     strliteral: "strliteral"
 };]]
 		)
+	end)
+
+	-- what do i call this.
+	suite:case("types.thisThingThatShouldntFailButDid", function(asserts)
+		helper.new([[type test_type = {
+    test: string,
+    num: number,
+    strliteral: "strliteral",
+};
+
+function test_type(value_a: test_type) {
+
+}
+
+test_type({
+    test: "hi",
+    num: 1,
+    strliteral: "strliteral"
+});]])
 	end)
 
 	suite:case("types.throwsTypeMismatch", function(asserts)
@@ -200,17 +219,11 @@ const x: number = test<string>(1);]]
 	end)
 
 	suite:case("types.variadic.builtin", function(asserts)
-		asserts.eq(
-			'print(1, 2, "three")',
-			helper.new([[print(1, 2, "three");]])
-		)
+		asserts.eq('print(1, 2, "three")', helper.new([[print(1, 2, "three");]]))
 	end)
 
 	suite:case("types.variadic.max", function(asserts)
-		asserts.eq(
-			'const x = math.max(1, 2, 3)',
-			helper.new([[const x: number = math.max(1, 2, 3);]])
-		)
+		asserts.eq("const x = math.max(1, 2, 3)", helper.new([[const x: number = math.max(1, 2, 3);]]))
 	end)
 
 	suite:case("types.variadic.pcall", function(asserts)
