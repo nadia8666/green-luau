@@ -1,10 +1,10 @@
 --!nonstrict
 
-local parser = require("./components/parser")
-local lexer = require("./components/lexer")
-local transpiler = require("./components/transpiler")
-local type_checker = require("./components/type_checker")
-local type_system = require("./components/type_system")
+local parser = require("./modules/parser")
+local lexer = require("./modules/lexer")
+local transpiler = require("./modules/transpiler")
+local type_checker = require("./modules/type_checker")
+local type_system = require("./modules/type_system")
 
 local main = {}
 

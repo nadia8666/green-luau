@@ -1,5 +1,5 @@
 local compilation_helper = {}
-local util = require("../components/util")
+local util = require("../modules/util")
 local main = require("../main")
 
 function compilation_helper.new(code: string)

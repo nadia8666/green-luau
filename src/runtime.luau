@@ -1,5 +1,7 @@
+--!nonstrict
+
 local main = require("./main")
-local util = require("./components/util")
+local util = require("./modules/util")
 
 local json = require("@std/json")
 local io = require("@std/io")
@@ -72,5 +74,5 @@ elseif mode == "lint" then
 end
 
 local err = "could not process files, invalid args?"
-io.write({ success = false, output = err })
+io.write(json.serialize({ success = false, output = err }))
 error(err)

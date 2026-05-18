@@ -3,7 +3,7 @@
 local builtins = require("./builtins")
 local types = require("./types")
 
-local type_system = {}
+local type_system = {} :: types.type_system
 type_system.__index = type_system
 
 function type_system.new()
@@ -204,11 +204,8 @@ end
 
 --TODO: see if this can be cleaned up
 function type_system:substitute(type_expr: types.type_node, mapping: { [string]: types.type_node }): types.type_node
-	if not type_expr then
-		return nil
-	end
-	if (type_expr.kind == "reference" or type_expr.kind == "generic") and mapping[type_expr.name] then
-		return mapping[type_expr.name]
+	if (type_expr.kind == "reference" or type_expr.kind == "generic") and mapping[type_expr.name :: string] then
+		return mapping[type_expr.name :: string]
 	end
 	if type_expr.kind == "object" then
 		local new_fields = {}
