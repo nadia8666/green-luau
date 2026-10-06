@@ -1,7 +1,7 @@
 <img src="green-luau.png" width="150"> <br>
 # green luau <br>
 it's good for the environment
-
+#### subnote this is Cancelled becuase airship for Godot in luau is Dead. the only other suitable place for this would be like roblox and rbxts is a Million times better or rotor if you want to trade ai made bugs for speed,, and i Guess like polytoria but.. its polytoria
 ts/java like language that is transpiled into luau with a blazingly slow transpiler. <br>
 code is "documented"
 
